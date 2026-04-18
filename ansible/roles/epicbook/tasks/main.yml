@@ -1,0 +1,117 @@
+---
+- name: Install system dependencies
+  apt:
+    name:
+      - nodejs
+      - npm
+      - git
+      - mysql-client
+    state: present
+    update_cache: yes
+
+- name: Clone EpicBook repository
+  git:
+    repo: "{{ app_repo }}"
+    dest: "{{ app_dest }}"
+    update: no
+
+- name: Install Node.js dependencies
+  npm:
+    path: "{{ app_dest }}"
+    state: present
+
+- name: Create DB config file (config.json)
+  template:
+    src: config.json.j2
+    dest: "{{ app_dest }}/config/config.json"
+
+# ----------------------------
+# WAIT FOR RDS
+# ----------------------------
+- name: Wait for MySQL RDS to be available
+  shell: |
+    mysql -h {{ db_host }} -P 3306 -u {{ db_username }} -p{{ db_password }} -e "SELECT 1"
+  register: db_check
+  retries: 30
+  delay: 10
+  until: db_check.rc == 0
+  environment:
+    MYSQL_PWD: "{{ db_password }}"
+
+# ----------------------------
+# DATABASE IMPORT (RUN ONCE)
+# ----------------------------
+
+- name: Check if DB already initialized
+  stat:
+    path: "{{ app_dest }}/.db_initialized"
+  register: db_marker
+
+- name: Create database (if not exists)
+  mysql_db:
+    name: "{{ db_name }}"
+    state: present
+    login_host: "{{ db_host }}"
+    login_port: 3306
+    login_user: "{{ db_username }}"
+    login_password: "{{ db_password }}"
+
+- name: Import database schema
+  mysql_db:
+    name: "{{ db_name }}"
+    state: import
+    target: "{{ app_dest }}/db/BuyTheBook_Schema.sql"
+    login_host: "{{ db_host }}"
+    login_port: 3306
+    login_user: "{{ db_username }}"
+    login_password: "{{ db_password }}"
+  when: not db_marker.stat.exists
+
+- name: Import author seed data
+  mysql_db:
+    name: "{{ db_name }}"
+    state: import
+    target: "{{ app_dest }}/db/author_seed.sql"
+    login_host: "{{ db_host }}"
+    login_port: 3306
+    login_user: "{{ db_username }}"
+    login_password: "{{ db_password }}"
+  when: not db_marker.stat.exists
+
+- name: Import books seed data
+  mysql_db:
+    name: "{{ db_name }}"
+    state: import
+    target: "{{ app_dest }}/db/books_seed.sql"
+    login_host: "{{ db_host }}"
+    login_port: 3306
+    login_user: "{{ db_username }}"
+    login_password: "{{ db_password }}"
+  when: not db_marker.stat.exists
+
+- name: Create DB initialization marker
+  file:
+    path: "{{ app_dest }}/.db_initialized"
+    state: touch
+  when: not db_marker.stat.exists
+
+# ----------------------------
+# PM2 SETUP
+# ----------------------------
+- name: Install PM2 globally
+  npm:
+    name: pm2
+    global: yes
+
+- name: Start EpicBook application with PM2
+  shell: pm2 start server.js
+  args:
+    chdir: "{{ app_dest }}"
+
+- name: Save PM2 process list
+  shell: pm2 save
+
+- name: Enable PM2 startup service
+  shell: |
+    env PATH=$PATH:/usr/bin pm2 startup systemd -u ubuntu --hp /home/ubuntu
+  become: true

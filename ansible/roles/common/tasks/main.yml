@@ -1,0 +1,21 @@
+---
+- name: Update apt cache
+  apt:
+    update_cache: yes
+    upgrade: yes
+
+- name: Install base packages
+  apt:
+    name:
+      - git
+      - curl
+      - unzip
+      - nginx
+    state: present
+
+- name: Install Python MySQL dependency (required for Ansible mysql_db)
+  apt:
+    name: python3-pymysql
+    state: present
+    update_cache: yes
+  become: true

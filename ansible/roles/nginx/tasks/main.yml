@@ -1,0 +1,30 @@
+---
+# Install & configure nginx
+- name: Install nginx
+  apt:
+    name: nginx
+    state: present
+
+- name: Remove default site
+  file:
+    path: /etc/nginx/sites-enabled/default
+    state: absent
+
+- name: Copy nginx config
+  template:
+    src: epicbook.conf.j2
+    dest: /etc/nginx/sites-available/epicbook
+  notify: reload nginx
+
+- name: Enable site
+  file:
+    src: /etc/nginx/sites-available/epicbook
+    dest: /etc/nginx/sites-enabled/epicbook
+    state: link
+  notify: reload nginx
+
+- name: Start nginx
+  service:
+    name: nginx
+    state: started
+    enabled: true

@@ -1,0 +1,12 @@
+app_dir: /var/www/epicbook
+
+db_host: "epicbook-db.cm1aaiy62lwt.us-east-1.rds.amazonaws.com"
+db_port: 3306
+db_username: admin
+db_password: AngiesDB01
+db_name: bookstore
+
+app_repo: "https://github.com/Crystal-Angie/theepicbook.git"
+app_dest: "/var/www/epicbook"
+app_user: "ubuntu"
+node_port: 8080
